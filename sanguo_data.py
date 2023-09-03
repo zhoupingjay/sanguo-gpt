@@ -15,7 +15,7 @@ class SanGuoData:
         self.decoder = None
         self.data = None
     
-    def ingest(self, gen_dataset=True):
+    def ingest(self, gen_dataset=True, gen_token_map=True):
         with open(self.source, 'r', encoding='utf-8') as f:
             self.text = f.read()
         print(f"Length of text: {len(self.text)}")   # 606051 Chinese characters
@@ -40,6 +40,9 @@ class SanGuoData:
 
         self.data = torch.tensor(self.encoder(self.text), dtype=torch.long)
         # print(self.data.shape, self.data.dtype)
+
+        if gen_token_map:
+            self.save_token_map()
 
         if gen_dataset:
             self.gen_dataset()

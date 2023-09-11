@@ -22,6 +22,7 @@ class SanGuoData:
         # print(self.text[:100])
         self.chars = sorted(list(set(self.text)))
         self.vocab_size = len(self.chars) 
+        print(f"Vocabulary size: {self.vocab_size}")
 
         # I don't plan to use a tokenizer for this.
         # IMHO, a Chinese character is not a "letter". Instead it's more like

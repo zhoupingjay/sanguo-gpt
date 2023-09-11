@@ -18,11 +18,9 @@ It is one of the "four prominent classics" of ancient Chinese literature, and is
 It's also one of the favorite inspirations for 穿越小说 ("time travel fictions"), in which main character changed significant events such as the death of 关羽 (Guan Yu).
 I've read a quite few good ones. :-)
 
-Illustration of a famous scene 长坂坡 (Chang Ban Po), from http://www.mfcb.net/16035.html:
+## Changelog
 
-<img src="http://media.mfcb.net/wp-content/uploads/2020/05/sanguo61-24cbp001.jpg" alt="长坂坡" width="400" />
-
-Picture link: http://media.mfcb.net/wp-content/uploads/2020/05/sanguo61-24cbp001.jpg
+- v0.1: Initial version
 
 ## Quickstart
 
@@ -147,6 +145,14 @@ Validation loss over steps:
 <img src="images/val_loss.png" alt="Validation loss" width="400"/>
 
 Both training and validation losses are below 0.1 after 40000 steps.
+
+Embeddings at step 0:
+
+<img src="images/embedding-step0.png" alt="Validation loss" width="800"/>
+
+Embeddings at step 999:
+
+<img src="images/embedding-step999.png" alt="Validation loss" width="800"/>
 
 ## Generating & Serving
 

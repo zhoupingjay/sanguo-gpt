@@ -128,7 +128,7 @@ class SanGuoGPTModel(nn.Module):
             B, T, C = logits.shape
             logits = logits.view(B*T, C)
             targets = targets.view(B*T)
-            loss = F.cross_entropy(logits, targets)
+            loss = F.cross_entropy(logits, targets)   # loss is a scalar
 
         return logits, loss
 
@@ -149,3 +149,7 @@ class SanGuoGPTModel(nn.Module):
             # append sampled index to the running sequence
             idx = torch.cat((idx, idx_next), dim=1) # (B, T+1)
         return idx
+    
+    @torch.no_grad()
+    def get_embeddings(self, tokens):
+       return self.token_embedding_table(tokens)

@@ -8,86 +8,86 @@ import torch.nn.functional as F
 # https://colab.research.google.com/drive/1JMLa53HDuA-i7ZBmqV7ZnA3c_fvtXnx-?usp=sharing
 
 class Head(nn.Module):
-  """ one head of self-attention """
+    """ one head of self-attention """
 
-  def __init__(self, head_size, d_model, block_size, dropout):
-    super().__init__()
-    self.key = nn.Linear(d_model, head_size, bias=False)
-    self.query = nn.Linear(d_model, head_size, bias=False)
-    self.value = nn.Linear(d_model, head_size, bias=False)
-    self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
+    def __init__(self, head_size, d_model, block_size, dropout):
+        super().__init__()
+        self.key = nn.Linear(d_model, head_size, bias=False)
+        self.query = nn.Linear(d_model, head_size, bias=False)
+        self.value = nn.Linear(d_model, head_size, bias=False)
+        self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
 
-    self.dropout = nn.Dropout(dropout)
+        self.dropout = nn.Dropout(dropout)
 
-  def forward(self, x):
-    B,T,C = x.shape
-    k = self.key(x)   # (B,T,C)
-    q = self.query(x) # (B,T,C)
-    # compute attention scores ("affinities")
-    wei = q @ k.transpose(-2,-1) * C**-0.5 # (B, T, C) @ (B, C, T) -> (B, T, T)
-    # apply the "causal mask"
-    wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf')) # (B, T, T)
-    wei = F.softmax(wei, dim=-1) # (B, T, T)
-    wei = self.dropout(wei)
-    # perform the weighted aggregation of the values
-    v = self.value(x) # (B,T,C)
-    out = wei @ v # (B,T,T) @ (B,T,C) -> (B,T,C)
-    return out
+    def forward(self, x):
+        B,T,C = x.shape
+        k = self.key(x)   # (B,T,C)
+        q = self.query(x) # (B,T,C)
+        # compute attention scores ("affinities")
+        wei = q @ k.transpose(-2,-1) * C**-0.5 # (B, T, C) @ (B, C, T) -> (B, T, T)
+        # apply the "causal mask"
+        wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf')) # (B, T, T)
+        wei = F.softmax(wei, dim=-1) # (B, T, T)
+        wei = self.dropout(wei)
+        # perform the weighted aggregation of the values
+        v = self.value(x) # (B,T,C)
+        out = wei @ v # (B,T,T) @ (B,T,C) -> (B,T,C)
+        return out
 
 class MultiHeadAttention(nn.Module):
-  """ multiple heads of self-attention in parallel """
+    """ multiple heads of self-attention in parallel """
 
-  def __init__(self, n_head, head_size, d_model, dropout, block_size):
-    super().__init__()
-    self.heads = nn.ModuleList([Head(head_size=head_size,
-                                     d_model=d_model,
-                                     block_size=block_size,
-                                     dropout=dropout) for _ in range(n_head)])
-    self.proj = nn.Linear(d_model, d_model)
-    self.dropout = nn.Dropout(dropout)
+    def __init__(self, n_head, head_size, d_model, dropout, block_size):
+        super().__init__()
+        self.heads = nn.ModuleList([Head(head_size=head_size,
+                                        d_model=d_model,
+                                        block_size=block_size,
+                                        dropout=dropout) for _ in range(n_head)])
+        self.proj = nn.Linear(d_model, d_model)
+        self.dropout = nn.Dropout(dropout)
 
-  def forward(self, x):
-    out = torch.cat([h(x) for h in self.heads], dim=-1)
-    out = self.dropout(self.proj(out))
-    # print("MHA output shape", out.shape)
-    return out # (B, T, n_embed)
+    def forward(self, x):
+        out = torch.cat([h(x) for h in self.heads], dim=-1)
+        out = self.dropout(self.proj(out))
+        # print("MHA output shape", out.shape)
+        return out # (B, T, n_embed)
 
 class FeedFoward(nn.Module):
-  """ a simple linear layer followed by a non-linearity """
+    """ a simple linear layer followed by a non-linearity """
 
-  def __init__(self, d_model, dropout):
-    super().__init__()
-    self.net = nn.Sequential(
-        nn.Linear(d_model, 4 * d_model),
-        nn.ReLU(),
-        nn.Linear(4 * d_model, d_model),
-        nn.Dropout(dropout),
-    )
+    def __init__(self, d_model, dropout):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(d_model, 4 * d_model),
+            nn.ReLU(),
+            nn.Linear(4 * d_model, d_model),
+            nn.Dropout(dropout),
+        )
 
-  def forward(self, x):
-    return self.net(x)
+    def forward(self, x):
+        return self.net(x)
 
 class Block(nn.Module):
-  """ Transformer block: communication followed by computation """
+    """ Transformer block: communication followed by computation """
 
-  def __init__(self, d_model, n_head, dropout, block_size):
-    # d_model: embedding dimension, n_head: the number of heads we'd like
-    super().__init__()
-    head_size = d_model // n_head
-    self.sa = MultiHeadAttention(n_head=n_head,
-                                 head_size=head_size,
-                                 d_model=d_model,
-                                 dropout=dropout,
-                                 block_size=block_size)
-    self.ffwd = FeedFoward(d_model=d_model, dropout=dropout)
-    self.ln1 = nn.LayerNorm(d_model)
-    self.ln2 = nn.LayerNorm(d_model)
+    def __init__(self, d_model, n_head, dropout, block_size):
+        # d_model: embedding dimension, n_head: the number of heads we'd like
+        super().__init__()
+        head_size = d_model // n_head
+        self.sa = MultiHeadAttention(n_head=n_head,
+                                    head_size=head_size,
+                                    d_model=d_model,
+                                    dropout=dropout,
+                                    block_size=block_size)
+        self.ffwd = FeedFoward(d_model=d_model, dropout=dropout)
+        self.ln1 = nn.LayerNorm(d_model)
+        self.ln2 = nn.LayerNorm(d_model)
 
-  def forward(self, x):
-    x = x + self.sa(self.ln1(x))
-    x = x + self.ffwd(self.ln2(x))
-    # print("Block output shape", x.shape)
-    return x   # (B, T, n_embed)
+    def forward(self, x):
+        x = x + self.sa(self.ln1(x))
+        x = x + self.ffwd(self.ln2(x))
+        # print("Block output shape", x.shape)
+        return x   # (B, T, n_embed)
 
 # super simple model
 class SanGuoGPTModel(nn.Module):
@@ -135,6 +135,8 @@ class SanGuoGPTModel(nn.Module):
     @torch.no_grad()
     def generate(self, idx, max_new_tokens):
         # idx is (B, T) array of indices in the current context
+        # perplexity = exp(-1/N sum(log(p(w_i|w_1,...,w_{i-1}))))
+        sum_log_p = torch.zeros(idx.shape[0])   # shape (B,)
         for _ in range(max_new_tokens):
             # crop idx to the last block_size tokens
             idx_cond = idx[:, -self.block_size:]
@@ -146,10 +148,16 @@ class SanGuoGPTModel(nn.Module):
             probs = F.softmax(logits, dim=-1) # (B, C)
             # sample from the distribution
             idx_next = torch.multinomial(probs, num_samples=1) # (B, 1)
+            # calculate perplexity: sum of log_p
+            log_p = torch.tensor([probs[i,idx_next[i,0].item()] for i in range(idx_next.shape[0])])
+            log_p = torch.log(log_p)
+            sum_log_p += log_p
             # append sampled index to the running sequence
             idx = torch.cat((idx, idx_next), dim=1) # (B, T+1)
-        return idx
+        
+        # Return the generated text along with perplexity.
+        return idx, torch.exp(-1.0 * sum_log_p / max_new_tokens)
     
     @torch.no_grad()
     def get_embeddings(self, tokens):
-       return self.token_embedding_table(tokens)
+        return self.token_embedding_table(tokens)

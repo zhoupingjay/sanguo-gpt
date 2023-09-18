@@ -39,10 +39,12 @@ def gen_response(prompt:str) -> str:
     # first dimension is the batch, which is expected by the forward method.
     context = torch.tensor(encoder(prompt, c2i), device=device).unsqueeze(0)
     # model.generate() will truncate the prompt if it's too long, no need to worry about this.
-    resp = decoder(model.generate(context, max_new_tokens=args.gen_length)[0].tolist(), i2c)
+    resp_idx, ppl = model.generate(context, max_new_tokens=args.gen_length) 
+    resp = decoder(resp_idx[0].tolist(), i2c)
     end = time.time()
     tokens_generated = min(args.gen_length, len(resp) - len(prompt))
     print(f"{tokens_generated} tokens generated in {end-start:>.3f} seconds, avg {tokens_generated/(end-start):>.3f} tokens/sec.")
+    print(f"Perplexity of generation: {ppl[0].item():>.4f}")
     return resp
 
 def webui():

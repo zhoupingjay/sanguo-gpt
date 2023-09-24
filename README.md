@@ -1,4 +1,4 @@
-# 三国GPT (SanGuo GPT) v0.1
+# 三国GPT (SanGuo GPT) v0.2
 
 ## Overview
 
@@ -20,6 +20,12 @@ I've read a quite few good ones. :-)
 
 ## Changelog
 
+- v0.2:
+    - Remove redundant shuffling in `get_batch`, as the dataset is already shuffled
+    - Compute perplexity in training and generation
+    - Support visualization of embeddings
+    - Save model checkpoints during training
+    - Train the model with entire dataset (no validation)
 - v0.1: Initial version
 
 ## Quickstart
@@ -44,7 +50,8 @@ Prepare the dataset:
 ./prepare_data.sh
 ```
 
-Train the model:
+Train the model, for example:
+
 ```bash
 python train.py --num_iters 5000 \
     --eval_interval 100 --eval_iters 10 \
@@ -53,6 +60,7 @@ python train.py --num_iters 5000 \
 ```
 
 Serving the model with Web UI:
+
 ```bash
 streamlit run generate.py -- --model sanguogpt.pth -l 100 --webui
 ```
@@ -102,10 +110,12 @@ Each training example is a sequence of tokens, so it can be represented using it
 
 E.g. if the source text has 60,000 tokens and the block size is 200, then every training example must start from a position between 0 and 59799 (inclusive). We can use each example's start position to represent it. So the entire dataset can be represented as a collection of starting positions (numbers from 0 to 59799).
 
-When generating the datasets for training and validation, I don't actually store sequences in these datasets. Instead I just store their representations (starting positions). This saves me lots of memory in shuffling and sampling.
+When generating the datasets for training, I don't actually store sequences in these datasets. Instead I just store their representations (starting positions). This saves me lots of memory in shuffling and sampling.
 
-Just like regular ML jobs, I need to split the dataset into training and validation.
-I first generate a random permutation of start positions (0, 1, 2, ..., 59799), then assign the first 90% of the resulting list to be the training set and rest being the validation set. The ratio 90% is a hyperparameter that can be tuned by command line argument. In this way, both training set and validation set are randomly shuffled and there won't be any duplicates between the two sets.
+In v0.1, I splitted the dataset into training and validation sets. In v0.2, I decided to try using the entire dataset for training only.
+The reason is that I want to explore the idea of "书读千遍，其义自现": I want to see how much understanding the model can get by reading the entire book many times, so there is no reason to keep some of the text out of training.
+
+I first generate a random permutation of start positions (e.g. 0, 1, 2, ..., 59799), so that all examples are shuffled without any duplication. Batches are generated from this list of start positions. Because this list is already a random permutation, there is no need to do random sampling again in `get_batch`. Instead, I just need to take the next `batch_size` of examples from this list.
 
 ## The Model
 
@@ -120,15 +130,22 @@ Here is a visualization of the model architecture using TensorBoard.
 
 ## Training
 
-The training loop is fairly straightforward. In each step, I generate a batch of examples, feed them into the model and optimize the parameters using SGD.
+The training loop is fairly straightforward. In each step, I generate a batch of examples, feed them into the model and optimize the parameters using AdamW.
 
-I trained the model with 40000 iterations (steps). What does it mean? Let's do a simple math.
+I trained the v0.2 model with 100000 iterations (steps), and save the checkpoints every 20000 steps.
+
+```bash
+python train.py --num_iters 100000 --eval_interval 1000 --batch_size 32 --block_size 256 -\
+    -dropout 0.0 --training_set_ratio 1.0 --ckpt_interval 20000 -o checkpoints/sanguogpt-v0.2.pth
+```
+
+What does "100000 iterations" mean? Let's do a simple math.
 
 - The source text has 606051 tokens in total.
 - Assuming `block_size` is 256, the entire dataset (containing all examples) will have `606051-256=605795` examples.
-- Assuming 90% are training set, then the training set will contain 545215 examples.
-- `batch_size` is 32, then we'll need about 17038 iterations (steps) to go through the training set once.
-- So a training loop of 40000 iterations means about 2.35 epochs. Or in other words, the model will read the whole book about 2.35 times.
+- In v0.2, I use the entire dataset for training. So the training set will contain 605795 examples.
+- `batch_size` is 32, then we'll need about 18932 iterations (steps) to go through the training set once.
+- So a training loop of 100000 iterations means about 5.28 epochs. Or in other words, the model will read the whole book about 5.28 times.
 
 Apparently this is far from "reading the book a thousand times", but since this is just the first version I decided to give it a try.
 
@@ -139,10 +156,6 @@ I used TensorBoard to visualize the training process.
 Training loss over steps:
 
 <img src="images/train_loss.png" alt="Training loss" width="400"/>
-
-Validation loss over steps:
-
-<img src="images/val_loss.png" alt="Validation loss" width="400"/>
 
 Both training and validation losses are below 0.1 after 40000 steps.
 

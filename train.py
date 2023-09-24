@@ -23,10 +23,11 @@ parser.add_argument('--num_layers', default=6, help='Number of Multi-Head Attent
 parser.add_argument('--dropout', default=0.01, type=float)
 parser.add_argument('--lr_rate', default=1e-3, help='Learning rate for optimizer.', type=float)
 parser.add_argument('--num_iters', default=40000, help='Number of training iterations.', type=int)
-parser.add_argument('--eval_interval', default=100, help='Evaluate every certain number of training iterations', type=int)
+parser.add_argument('--eval_interval', default=1000, help='Evaluate every certain number of training iterations', type=int)
 parser.add_argument('--eval_iters', default=10, help='Number of iterations in evaluation cycle.', type=int)
-parser.add_argument('--training_set_ratio', default=0.9, help='Fraction of dataset that is used for training.', type=float)
+parser.add_argument('--training_set_ratio', default=1.0, help='Fraction of dataset that is used for training.', type=float)
 parser.add_argument('--tensorboard', action='store_true', help='If specified, enable visualization with TensorBoard.')
+parser.add_argument('--ckpt_interval', default=10000, help='Save checkpoint every certain number of training iterations', type=int)
 
 args = parser.parse_args()
 
@@ -61,6 +62,9 @@ def train(session_name:str = None):
     max_iters = args.num_iters
     eval_interval = args.eval_interval
     training_set_ratio = args.training_set_ratio
+    ckpt_interval = args.ckpt_interval
+    ckpt_basename = os.path.basename(args.output)
+    ckpt_path = os.path.dirname(args.output)
     device = (
         "cuda" if torch.cuda.is_available()
         else "mps" if torch.backends.mps.is_available()
@@ -112,34 +116,35 @@ def train(session_name:str = None):
     optimizer.zero_grad(set_to_none=True)
 
     training_start = time.time()
+    acc_loss = 0.0
+    num_steps = 0
     # Training loop
     for iter in range(max_iters):
         # every once in a while evaluate the loss on train and val sets
-        if (iter % eval_interval) == 0 or iter == max_iters - 1:
-            losses = estimate_loss(model, sanguo_data, device)
-            # perplexity = exp(cross_entropy)
-            ppl_train = math.exp(losses['train'].item())
-            ppl_val = math.exp(losses['val'].item())
-            print(f"step {iter}: train loss {losses['train']:.3f}, perplexity {ppl_train:.3f}, val loss {losses['val']:.3f}, perplexity {ppl_val:.3f}")
+        if (iter > 0 and (iter % eval_interval) == 0) or iter == max_iters - 1:
+            avg_loss = acc_loss / num_steps
+            ppl_train = math.exp(avg_loss)
+            # print(f"num_steps={num_steps}, acc_loss={acc_loss:>.3f}, avg_loss={avg_loss:>.3f}")
+            print(f"step {iter}: avg_loss {avg_loss:>.3f}, avg_perplexity {ppl_train:>.3f}")
+            acc_loss = 0.0
+            num_steps = 0
             # Log the estimated training loss and validation loss
             if writer is not None:
                 writer.add_scalars(
                     # main_tag
-                    'Estimated Training vs. Validation Loss',
+                    'Average Training Loss',
                     # tag_scalar
                     {
-                        'Training': losses['train'].item(),
-                        'Validation': losses['val'].item(),
+                        'Training': avg_loss,
                     },
                     # global_step
                     iter)
                 writer.add_scalars(
                     # main_tag
-                    'Estimated Training vs. Validation Perplexity',
+                    'Average Training Perplexity',
                     # tag_scalar
                     {
                         'Training': ppl_train,
-                        'Validation': ppl_val,
                     },
                     # global_step
                     iter)
@@ -148,12 +153,20 @@ def train(session_name:str = None):
                 # print(embedding_table.shape)
                 writer.add_embedding(embedding_table, metadata=sanguo_data.chars[20:-7], tag=f"embeddings-step{iter}")
                 writer.flush()
+        
+        # save the checkpoint periodically
+        if ckpt_interval > 0 and (iter > 0 and (iter % ckpt_interval) == 0):
+            ckpt = os.path.join(ckpt_path, ckpt_basename + f"-{iter}")
+            print(f"---> save checkpoint: {ckpt}")
+            torch.save(model, ckpt)
 
         # sample a batch of data
         xb, yb = sanguo_data.get_batch('train', batch_size=batch_size, device=device)
 
         # evaluate the loss
         logits, loss = model(xb, yb)
+        acc_loss += loss.item()
+        num_steps += 1
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()

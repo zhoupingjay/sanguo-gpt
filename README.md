@@ -12,7 +12,7 @@ I also plan to use this project as a vehicle for playing with other new ideas - 
 
 ---
 
-A little background about 三国演义 (Romance of the Three Kindoms)...
+A little background about 三国演义 (Romance of the Three Kingdoms)...
 
 It is one of the "four prominent classics" of ancient Chinese literature, and is so influential that I believe almost every Chinese know some quotes from it.
 It's also one of the favorite inspirations for 穿越小说 ("time travel fictions"), in which main character changed significant events such as the death of 关羽 (Guan Yu).

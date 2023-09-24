@@ -7,7 +7,7 @@ import streamlit as st
 from sanguo_data import encoder, decoder, load_token_map
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-m', '--model', default='sanguogpt.pth', help='Input text for training.', type=str)
+parser.add_argument('-m', '--model', default='checkpoints/sanguogpt-v0.2.pth', help='Input text for training.', type=str)
 parser.add_argument('-l', '--gen_length', default=100, help='Maximum length to generate.', type=int)
 parser.add_argument('--c2i', default='c2i.json', help='Token map file (character to index).', type=str)
 parser.add_argument('--i2c', default='i2c.json', help='Token map file (index to character).', type=str)
@@ -49,7 +49,7 @@ def gen_response(prompt:str) -> str:
 
 def webui():
     st.set_page_config(page_title='三国GPT SanGuo GPT')
-    st.title('三国GPT SanGuo GPT v0.1')
+    st.title('三国GPT SanGuo GPT v0.2')
     with st.form('Generate SanGuo'):
         text = st.text_area('Enter prompt:', args.prompt)
         submitted = st.form_submit_button('Submit')

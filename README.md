@@ -67,7 +67,7 @@ streamlit run generate.py -- --model sanguogpt.pth -l 100 --webui
 
 Here is an example of the UI:
 
-<img src="images/generate-v0.1.png" alt="detailed model architecture" width="500"/>
+<img src="images/generate-v0.2.png" alt="detailed model architecture" width="500"/>
 
 ## Dataset
 

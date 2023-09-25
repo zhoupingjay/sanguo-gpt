@@ -102,7 +102,7 @@ I've included downloading and preprocessing steps in the `prepare_data.sh` scrip
 
 ## Tokenization
 
-Each Chinease character in the text is regarded as a token, so I don't use a tokenizer in this project. IMHO, a Chinese character is not a "letter" - it's more like a word or subword. Therefore, each Chinese character should be treated as a token.
+Each Chinese character in the text is regarded as a token, so I don't use a tokenizer in this project. IMHO, a Chinese character is not a "letter" - it's more like a word or subword. Therefore, each Chinese character should be treated as a token.
 
 ## Shuffling & Sampling
 

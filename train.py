@@ -21,7 +21,11 @@ parser.add_argument('-d', '--d_model', default=384, help='Dimension of each toke
 parser.add_argument('--num_heads', default=8, help='Number of attention heads.', type=int)
 parser.add_argument('--num_layers', default=6, help='Number of Multi-Head Attention + FFN layers (blocks).', type=int)
 parser.add_argument('--dropout', default=0.01, type=float)
-parser.add_argument('--lr_rate', default=1e-3, help='Learning rate for optimizer.', type=float)
+parser.add_argument('--lr_rate', default=6e-4, help='Max learning rate for optimizer.', type=float)
+parser.add_argument('--min_lr', default=6e-5, help='Min learning rate for optimizer.', type=float)
+parser.add_argument('--lr_decay_iters', default=60000, help='Number of steps before learning rate is flat at min_lr.', type=int)
+parser.add_argument('--warmup_iters', default=1000, help='Number of steps to warm up.', type=int)
+parser.add_argument('--decay_lr', action='store_true', help='If specified, enable decaying learning rate.')
 parser.add_argument('--num_iters', default=40000, help='Number of training iterations.', type=int)
 parser.add_argument('--eval_interval', default=1000, help='Evaluate every certain number of training iterations', type=int)
 parser.add_argument('--eval_iters', default=10, help='Number of iterations in evaluation cycle.', type=int)
@@ -30,6 +34,20 @@ parser.add_argument('--tensorboard', action='store_true', help='If specified, en
 parser.add_argument('--ckpt_interval', default=10000, help='Save checkpoint every certain number of training iterations', type=int)
 
 args = parser.parse_args()
+
+# learning rate decay scheduler (cosine with warmup)
+def get_lr(it):
+    # 1) linear warmup for warmup_iters steps
+    if it < args.warmup_iters:
+        return args.lr_rate * it / args.warmup_iters
+    # 2) if it > lr_decay_iters, return min learning rate
+    if it > args.lr_decay_iters:
+        return args.min_lr
+    # 3) in between, use cosine decay down to min learning rate
+    decay_ratio = (it - args.warmup_iters) / (args.lr_decay_iters - args.warmup_iters)
+    assert 0 <= decay_ratio <= 1
+    coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff ranges 0..1
+    return args.min_lr + coeff * (args.lr_rate - args.min_lr)
 
 @torch.no_grad()
 def estimate_loss(model, data, device):
@@ -58,7 +76,7 @@ def train(session_name:str = None):
     n_head = args.num_heads
     n_layer = args.num_layers
     dropout = args.dropout
-    lr_rate = args.lr_rate
+    lr_rate = get_lr(0) if args.decay_lr else args.lr_rate
     max_iters = args.num_iters
     eval_interval = args.eval_interval
     training_set_ratio = args.training_set_ratio
@@ -120,12 +138,17 @@ def train(session_name:str = None):
     num_steps = 0
     # Training loop
     for iter in range(max_iters):
+        # Set learning rate for this iteration
+        lr = get_lr(iter) if args.decay_lr else lr_rate
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
+
         # every once in a while evaluate the loss on train and val sets
         if (iter > 0 and (iter % eval_interval) == 0) or iter == max_iters - 1:
             avg_loss = acc_loss / num_steps
             ppl_train = math.exp(avg_loss)
             # print(f"num_steps={num_steps}, acc_loss={acc_loss:>.3f}, avg_loss={avg_loss:>.3f}")
-            print(f"step {iter}: avg_loss {avg_loss:>.3f}, avg_perplexity {ppl_train:>.3f}")
+            print(f"step {iter}: lr {lr:>.5f} avg_loss {avg_loss:>.3f}, avg_perplexity {ppl_train:>.3f}")
             acc_loss = 0.0
             num_steps = 0
             # Log the estimated training loss and validation loss
@@ -148,17 +171,27 @@ def train(session_name:str = None):
                     },
                     # global_step
                     iter)
-                # Visualize the embeddings.
-                embedding_table = model.get_embeddings(all_tokens)  # (vocab_size, d_model)
-                # print(embedding_table.shape)
-                writer.add_embedding(embedding_table, metadata=sanguo_data.chars[20:-7], tag=f"embeddings-step{iter}")
-                writer.flush()
-        
+                writer.add_scalars(
+                    'Learning rate',
+                    {
+                        'learning_rate': lr,
+                    }
+                )
+
         # save the checkpoint periodically
         if ckpt_interval > 0 and (iter > 0 and (iter % ckpt_interval) == 0):
             ckpt = os.path.join(ckpt_path, ckpt_basename + f"-{iter}")
             print(f"---> save checkpoint: {ckpt}")
             torch.save(model, ckpt)
+
+            # Save the embeddings with checkpoints.
+            if writer is not None:
+                # Visualize the embeddings.
+                embedding_table = model.get_embeddings(all_tokens)  # (vocab_size, d_model)
+                # print(embedding_table.shape)
+                writer.add_embedding(embedding_table, metadata=sanguo_data.chars[20:-7], tag=f"embeddings-step{iter}")
+                writer.flush()
+
 
         # sample a batch of data
         xb, yb = sanguo_data.get_batch('train', batch_size=batch_size, device=device)

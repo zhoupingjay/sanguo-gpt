@@ -164,8 +164,6 @@ Training loss over steps:
 
 <img src="images/loss-v0.2.2.png" alt="Training loss" width="600"/>
 
-Both training and validation losses are below 0.1 after 40000 steps.
-
 Embeddings at step 100000:
 
 <img src="images/embedding-v0.2.2-100000.png" alt="Embeddings" width="960"/>

@@ -1,4 +1,4 @@
-# 三国GPT (SanGuo GPT) v0.2
+# 三国GPT (SanGuo GPT) v0.2.2
 
 ## Overview
 
@@ -20,6 +20,12 @@ I've read a quite few good ones. :-)
 
 ## Changelog
 
+- v0.2.2
+    - Retrain model for 150000 steps using decaying learning rate and dropout=0.001.
+    - Training loss is 0.038 after 150000 steps.
+- v0.2.1
+    - New option of using decaying learning rate
+    - Retrain model for 150000 steps using decaying learning rate
 - v0.2:
     - Remove redundant shuffling in `get_batch`, as the dataset is already shuffled
     - Compute perplexity in training and generation
@@ -67,7 +73,7 @@ streamlit run generate.py -- --model sanguogpt.pth -l 100 --webui
 
 Here is an example of the UI:
 
-<img src="images/generate-v0.2.png" alt="detailed model architecture" width="500"/>
+<img src="images/generate-v0.2.2.png" alt="detailed model architecture" width="500"/>
 
 ## Dataset
 
@@ -135,8 +141,9 @@ The training loop is fairly straightforward. In each step, I generate a batch of
 I trained the v0.2 model with 100000 iterations (steps), and save the checkpoints every 20000 steps.
 
 ```bash
-python train.py --num_iters 100000 --eval_interval 1000 --batch_size 32 --block_size 256 -\
-    -dropout 0.0 --training_set_ratio 1.0 --ckpt_interval 20000 -o checkpoints/sanguogpt-v0.2.pth
+python train.py --num_iters 150000 --eval_interval 1000 --batch_size 32 --block_size 256 \
+    --dropout 0.001 --training_set_ratio 1.0 --ckpt_interval 50000 -o checkpoints/sanguogpt-v0.2.2.pth \
+    --tensorboard --decay_lr --lr_rate 8e-4 --min_lr 6e-5 --lr_decay_iters 150000 --warmup_iters 10000
 ```
 
 What does "100000 iterations" mean? Let's do a simple math.
@@ -145,7 +152,7 @@ What does "100000 iterations" mean? Let's do a simple math.
 - Assuming `block_size` is 256, the entire dataset (containing all examples) will have `606051-256=605795` examples.
 - In v0.2, I use the entire dataset for training. So the training set will contain 605795 examples.
 - `batch_size` is 32, then we'll need about 18932 iterations (steps) to go through the training set once.
-- So a training loop of 100000 iterations means about 5.28 epochs. Or in other words, the model will read the whole book about 5.28 times.
+- So a training loop of 150000 iterations means about 7.92 epochs. Or in other words, the model will read the whole book about 7.92 times.
 
 Apparently this is far from "reading the book a thousand times", but since this is just the first version I decided to give it a try.
 
@@ -155,17 +162,13 @@ I used TensorBoard to visualize the training process.
 
 Training loss over steps:
 
-<img src="images/train_loss.png" alt="Training loss" width="400"/>
+<img src="images/loss-v0.2.2.png" alt="Training loss" width="600"/>
 
 Both training and validation losses are below 0.1 after 40000 steps.
 
-Embeddings at step 0:
+Embeddings at step 100000:
 
-<img src="images/embedding-step0.png" alt="Validation loss" width="800"/>
-
-Embeddings at step 999:
-
-<img src="images/embedding-step999.png" alt="Validation loss" width="800"/>
+<img src="images/embedding-v0.2.2-100000.png" alt="Embeddings" width="960"/>
 
 ## Generating & Serving
 

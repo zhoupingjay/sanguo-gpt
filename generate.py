@@ -49,7 +49,7 @@ def gen_response(prompt:str) -> str:
 
 def webui():
     st.set_page_config(page_title='三国GPT SanGuo GPT')
-    st.title('三国GPT SanGuo GPT v0.2')
+    st.title('三国GPT SanGuo GPT v0.2.2')
     with st.form('Generate SanGuo'):
         text = st.text_area('Enter prompt:', args.prompt)
         submitted = st.form_submit_button('Submit')

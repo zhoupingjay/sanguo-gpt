@@ -1,4 +1,0 @@
-checkpoints/sanguogpt-v0.1.pth filter=lfs diff=lfs merge=lfs -text
-checkpoints/sanguogpt-v0.2.1.pth filter=lfs diff=lfs merge=lfs -text
-checkpoints/sanguogpt-v0.2.2.pth filter=lfs diff=lfs merge=lfs -text
-checkpoints/sanguogpt-v0.2.pth filter=lfs diff=lfs merge=lfs -text

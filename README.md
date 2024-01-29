@@ -193,7 +193,7 @@ The script `generate.py` supports both command line and Web App mode.
 By default it runs in command line mode, for example:
 
 ```bash
-python generate.py -m <model_checkpoint> -l 100 --prompt '<your_prompt>'
+python generate.py --resume_from <model_checkpoint> -l 100 --prompt '<your_prompt>'
 ```
 
 The drawback is that you'll need to specify the prompt (Chinese characters) from the command line.
@@ -203,7 +203,7 @@ I used [streamlit](https://github.com/streamlit/streamlit) to build a simple Web
 To run the script in Web UI mode, just add the `--webui` argument and run it with streamlit.
 
 ```bash
-streamlit run generate.py -- --model <model_checkpoint> -l 100 --webui
+streamlit run generate.py -- --resume_from <model_checkpoint> -l 100 --webui
 ```
 
 ## Future Works

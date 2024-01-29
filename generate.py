@@ -3,11 +3,13 @@ import torch
 import time
 import streamlit as st
 
-# from model import SanGuoGPTModel
+from model import SanGuoGPTModel
 from sanguo_data import encoder, decoder, load_token_map
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-m', '--model', default='checkpoints/sanguogpt-v0.2.pth', help='Input text for training.', type=str)
+# DEPRECATED in v0.3: old checkpoint format no longer works.
+# parser.add_argument('-m', '--model', default='checkpoints/sanguogpt-v0.2.pth', help='Model checkpoint.', type=str)
+parser.add_argument('--resume_from', default='checkpoints/sanguogpt-v0.3.pt', help='[v0.3+] Model checkpoint to resume from.', type=str)
 parser.add_argument('-l', '--gen_length', default=100, help='Maximum length to generate.', type=int)
 parser.add_argument('--c2i', default='c2i.json', help='Token map file (character to index).', type=str)
 parser.add_argument('--i2c', default='i2c.json', help='Token map file (index to character).', type=str)
@@ -16,17 +18,29 @@ parser.add_argument('--webui', action='store_true', help='If specified, use stre
 
 args = parser.parse_args()
 
-print(f"Loading model from {args.model}")
-model = torch.load(args.model)
+print(f"Loading model from {args.resume_from}")
+checkpoint = torch.load(args.resume_from)
+model_args = checkpoint['model_args']
+device = (
+        "cuda" if torch.cuda.is_available()
+        else "mps" if torch.backends.mps.is_available()
+        else "cpu"
+    )
+
+model = SanGuoGPTModel(vocab_size=model_args['vocab_size'],
+                        d_model=model_args['d_model'],
+                        n_layer=model_args['n_layer'],
+                        dropout=model_args['dropout'],
+                        block_size=model_args['block_size'],
+                        n_head=model_args['n_head'],
+                        device=device
+                        )
+model = model.to(device)
+model = torch.compile(model) # requires PyTorch 2.0
+model.load_state_dict(checkpoint['model'])
 
 c2i, i2c = load_token_map(c2i_file=args.c2i, i2c_file=args.i2c)
 print(f"Loading token map file from {args.c2i} and {args.i2c}")
-
-device = (
-    "cuda" if torch.cuda.is_available()
-    else "mps" if torch.backends.mps.is_available()
-    else "cpu"
-)
 print(f"Using {device} device")
 
 # Test with zero input (according to i2c.json, 0 means '\n')
@@ -49,7 +63,7 @@ def gen_response(prompt:str) -> str:
 
 def webui():
     st.set_page_config(page_title='三国GPT SanGuo GPT')
-    st.title('三国GPT SanGuo GPT v0.2.2')
+    st.title('三国GPT SanGuo GPT v0.3')
     with st.form('Generate SanGuo'):
         text = st.text_area('Enter prompt:', args.prompt)
         submitted = st.form_submit_button('Submit')

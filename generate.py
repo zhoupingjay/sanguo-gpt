@@ -15,6 +15,7 @@ parser.add_argument('--c2i', default='c2i.json', help='Token map file (character
 parser.add_argument('--i2c', default='i2c.json', help='Token map file (index to character).', type=str)
 parser.add_argument('--prompt', default=' ', help='Prompt for text generation.', type=str)
 parser.add_argument('--webui', action='store_true', help='If specified, use streamlit-based Web UI instead of command line.')
+parser.add_argument('--compile', action='store_true', help='Compile the model (requires PyTorch 2.x and may not work on Mac).')
 
 args = parser.parse_args()
 
@@ -36,7 +37,8 @@ model = SanGuoGPTModel(vocab_size=model_args['vocab_size'],
                         device=device
                         )
 model = model.to(device)
-model = torch.compile(model) # requires PyTorch 2.0
+if args.compile:
+    model = torch.compile(model) # requires PyTorch 2.0
 model.load_state_dict(checkpoint['model'])
 
 c2i, i2c = load_token_map(c2i_file=args.c2i, i2c_file=args.i2c)

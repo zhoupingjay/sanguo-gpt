@@ -33,6 +33,7 @@ parser.add_argument('--training_set_ratio', default=1.0, help='Fraction of datas
 parser.add_argument('--tensorboard', action='store_true', help='If specified, enable visualization with TensorBoard.')
 parser.add_argument('--ckpt_interval', default=0, help='Save checkpoint every certain number of training iterations (0 to disable).', type=int)
 parser.add_argument('--resume_from', default=None, help='Checkpoint file from which the training resumes.', type=str)
+parser.add_argument('--compile', action='store_true', help='Compile the model (requires PyTorch 2.x and may not work on Mac).')
 
 args = parser.parse_args()
 
@@ -189,9 +190,10 @@ def train(session_name:str = None):
     # print the number of parameters in the model
     print(sum(p.numel() for p in model.parameters())/1e6, 'M parameters')
 
-    print("compiling the model...")
-    unoptimized_model = model
-    model = torch.compile(model) # requires PyTorch 2.0
+    if args.compile:
+        print("compiling the model...")
+        unoptimized_model = model
+        model = torch.compile(model) # requires PyTorch 2.0
 
     # Visualize the model
     xb, yb = sanguo_data.get_batch('train', batch_size=batch_size, device=device, random=True)

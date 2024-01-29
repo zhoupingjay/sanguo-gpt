@@ -1,4 +1,4 @@
-# 三国GPT (SanGuo GPT) v0.2.3
+# 三国GPT (SanGuo GPT) v0.3
 
 ## Overview
 

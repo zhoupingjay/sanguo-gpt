@@ -38,18 +38,22 @@ parser.add_argument('--compile', action='store_true', help='Compile the model (r
 args = parser.parse_args()
 
 # learning rate decay scheduler (cosine with warmup)
-def get_lr(it):
+def get_lr(it, training_config):
+    warmup_iters = training_config['warmup_iters']
+    lr_rate = training_config['lr_rate']
+    lr_decay_iters = training_config['lr_decay_iters']
+    min_lr = training_config['min_lr']
     # 1) linear warmup for warmup_iters steps
-    if it < args.warmup_iters:
-        return args.lr_rate * it / args.warmup_iters
+    if it < warmup_iters:
+        return lr_rate * it / warmup_iters
     # 2) if it > lr_decay_iters, return min learning rate
-    if it > args.lr_decay_iters:
-        return args.min_lr
+    if it > lr_decay_iters:
+        return min_lr
     # 3) in between, use cosine decay down to min learning rate
-    decay_ratio = (it - args.warmup_iters) / (args.lr_decay_iters - args.warmup_iters)
+    decay_ratio = (it - warmup_iters) / (lr_decay_iters - warmup_iters)
     assert 0 <= decay_ratio <= 1
     coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff ranges 0..1
-    return args.min_lr + coeff * (args.lr_rate - args.min_lr)
+    return min_lr + coeff * (lr_rate - min_lr)
 
 @torch.no_grad()
 def estimate_loss(model, data, device):
@@ -103,7 +107,7 @@ def train(session_name:str = None):
     n_head = args.num_heads
     n_layer = args.num_layers
     dropout = args.dropout
-    lr_rate = get_lr(1) if args.decay_lr else args.lr_rate
+    # lr_rate = get_lr(1) if args.decay_lr else args.lr_rate
     max_iters = args.num_iters
     eval_interval = args.eval_interval
     training_set_ratio = args.training_set_ratio
@@ -234,7 +238,7 @@ def train(session_name:str = None):
 
     while iter < max_iters:
         # Set learning rate for this iteration
-        lr = get_lr(iter) if args.decay_lr else lr_rate
+        lr = get_lr(iter, training_config) if args.decay_lr else args.lr_rate
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 

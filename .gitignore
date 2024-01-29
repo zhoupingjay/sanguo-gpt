@@ -168,3 +168,6 @@ i2c.json
 sanguo-utf8.txt
 sanguo.txt
 .DS_Store
+*.code-workspace
+test/
+tmp/

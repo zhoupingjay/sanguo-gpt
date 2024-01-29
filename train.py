@@ -13,7 +13,7 @@ from sanguo_data import SanGuoData
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--input', default='sanguo-utf8.txt', help='Input text for training.', type=str)
-parser.add_argument('-o', '--output', default='sanguogpt.pth', help='File name of the saved model.', type=str)
+parser.add_argument('-o', '--output', default='sanguogpt.pt', help='File name of the saved model.', type=str)
 parser.add_argument('--no_save_model', action='store_true', help='If specified, do not save the model after training.')
 parser.add_argument('-b', '--batch_size', default=32, type=int)
 parser.add_argument('-l', '--block_size', default=256, help='Sequence length (block size) in training.', type=int)
@@ -31,7 +31,8 @@ parser.add_argument('--eval_interval', default=1000, help='Evaluate every certai
 parser.add_argument('--eval_iters', default=10, help='Number of iterations in evaluation cycle.', type=int)
 parser.add_argument('--training_set_ratio', default=1.0, help='Fraction of dataset that is used for training.', type=float)
 parser.add_argument('--tensorboard', action='store_true', help='If specified, enable visualization with TensorBoard.')
-parser.add_argument('--ckpt_interval', default=10000, help='Save checkpoint every certain number of training iterations', type=int)
+parser.add_argument('--ckpt_interval', default=0, help='Save checkpoint every certain number of training iterations (0 to disable).', type=int)
+parser.add_argument('--resume_from', default=None, help='Checkpoint file from which the training resumes.', type=str)
 
 args = parser.parse_args()
 
@@ -68,6 +69,31 @@ def estimate_loss(model, data, device):
     model.train()
     return out
 
+def load_checkpoint(ckpt_file: str) -> dict:
+    print(f"---> load checkpoint: {ckpt_file}")
+    return torch.load(ckpt_file)
+
+def save_checkpoint(ckpt_file: str,
+                    model_args: dict,
+                    training_config: dict,
+                    iter: int,
+                    model: torch.nn.Module,
+                    optimizer):
+    print(f"---> save checkpoint: {ckpt_file}")
+    print('model_args')
+    print(model_args)
+    print('trainig_config')
+    print(training_config)
+    checkpoint = {
+        'model': model.state_dict(),
+        'optimizer': optimizer.state_dict(),
+        'model_args': model_args,
+        'training_config': training_config,
+        # Currently this is the only runtime info.
+        'iter': iter,
+    }
+    torch.save(checkpoint, ckpt_file)
+
 def train(session_name:str = None):
     # Some hyperparameters
     block_size = args.block_size
@@ -76,7 +102,7 @@ def train(session_name:str = None):
     n_head = args.num_heads
     n_layer = args.num_layers
     dropout = args.dropout
-    lr_rate = get_lr(0) if args.decay_lr else args.lr_rate
+    lr_rate = get_lr(1) if args.decay_lr else args.lr_rate
     max_iters = args.num_iters
     eval_interval = args.eval_interval
     training_set_ratio = args.training_set_ratio
@@ -90,6 +116,44 @@ def train(session_name:str = None):
     )
     print(f"Using {device} device")
 
+    checkpoint = None
+    if not args.resume_from is None:
+        # Resume from a checkpoint.
+        checkpoint = load_checkpoint(args.resume_from)
+        # Load model arguments
+        model_args = checkpoint['model_args']
+        print('model_args')
+        print(model_args)
+        # Load training configs.
+        training_config = checkpoint['training_config']
+        print('trainig_config')
+        print(training_config)
+        # Load last training's iteration number.
+        print("iter: {checkpoint['iter']}")
+        # return None
+    else:
+        # Initialize from command line.
+        model_args = dict(
+            # vocab_size will be set from SanGuoData later.
+            d_model=d_model,
+            n_layer=n_layer,
+            dropout=dropout,
+            block_size=block_size,
+            n_head=n_head,
+        )
+        training_config = dict(
+            lr_rate=args.lr_rate,
+            max_iters=max_iters,
+            batch_size=batch_size,
+            eval_interval=eval_interval,
+            min_lr=args.min_lr,
+            lr_decay_iters=args.lr_decay_iters,
+            warmup_iters=args.warmup_iters,
+            decay_lr=args.decay_lr,
+            eval_iters=args.eval_iters,
+            ckpt_interval=ckpt_interval,
+        )
+
     torch.manual_seed(1337)
 
     if session_name is None:
@@ -98,22 +162,36 @@ def train(session_name:str = None):
         writer = SummaryWriter(os.path.join('runs', session_name))
 
     # Prepare the dataset
-    sanguo_data = SanGuoData(source = args.input, block_size = block_size, training_set_ratio = training_set_ratio)
+    sanguo_data = SanGuoData(source=args.input,
+                             block_size=model_args['block_size'],
+                             training_set_ratio=training_set_ratio)
     sanguo_data.ingest()
+    batch_size = training_config['batch_size']
     print(f"Number of tokens in each batch: {block_size*batch_size}")
+    # If train from scratch, set vocab_size from the data.
+    if checkpoint is None:
+        model_args['vocab_size'] = sanguo_data.vocab_size
+    else:
+        # vocab_size in checkpoint should match the dataset
+        if model_args['vocab_size'] != sanguo_data.vocab_size:
+            print(f"[WARNING] vocab size mismatch: {model_args['vocab_size']} in checkpoint, {sanguo_data.vocab_size} from dataset.")
 
     # Create the model
-    model = SanGuoGPTModel(vocab_size=sanguo_data.vocab_size,
-                        d_model=d_model,
-                        n_layer=n_layer,
-                        dropout=dropout,
-                        block_size=block_size,
-                        n_head=n_head,
+    model = SanGuoGPTModel(vocab_size=model_args['vocab_size'],
+                        d_model=model_args['d_model'],
+                        n_layer=model_args['n_layer'],
+                        dropout=model_args['dropout'],
+                        block_size=model_args['block_size'],
+                        n_head=model_args['n_head'],
                         device=device
                         )
-    m = model.to(device)
+    model = model.to(device)
     # print the number of parameters in the model
-    print(sum(p.numel() for p in m.parameters())/1e6, 'M parameters')
+    print(sum(p.numel() for p in model.parameters())/1e6, 'M parameters')
+
+    print("compiling the model...")
+    unoptimized_model = model
+    model = torch.compile(model) # requires PyTorch 2.0
 
     # Visualize the model
     xb, yb = sanguo_data.get_batch('train', batch_size=batch_size, device=device, random=True)
@@ -130,21 +208,36 @@ def train(session_name:str = None):
     print('tokens for visualization', all_tokens.shape)
 
     # create a PyTorch optimizer
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr_rate)
-    optimizer.zero_grad(set_to_none=True)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=training_config['lr_rate'])
+    if checkpoint is None:
+        optimizer.zero_grad(set_to_none=True)
+    else:
+        # Load model parameters from checkpoint.
+        print('loading model state...')
+        model.load_state_dict(checkpoint['model'])
+        # Load optimizer state from checkpoint.
+        print('loading optimizer state...')
+        optimizer.load_state_dict(checkpoint['optimizer'])
 
     training_start = time.time()
     acc_loss = 0.0
     num_steps = 0
-    # Training loop
-    for iter in range(max_iters):
+    iter = 0 if checkpoint is None else checkpoint['iter']
+    eval_interval = training_config['eval_interval']
+    # TODO: should this be overridable by command line?
+    # max_iters = training_config['max_iters']
+    max_iters = args.num_iters
+    print(f"Start from step {iter} up to {max_iters}, evaluate every {eval_interval} steps.")
+    checkpoint = None   # free the memory
+
+    while iter < max_iters:
         # Set learning rate for this iteration
         lr = get_lr(iter) if args.decay_lr else lr_rate
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
         # every once in a while evaluate the loss on train and val sets
-        if (iter > 0 and (iter % eval_interval) == 0) or iter == max_iters - 1:
+        if (iter > 0 and num_steps > 0 and (iter % eval_interval) == 0) or iter == max_iters - 1:
             avg_loss = acc_loss / num_steps
             ppl_train = math.exp(avg_loss)
             # print(f"num_steps={num_steps}, acc_loss={acc_loss:>.3f}, avg_loss={avg_loss:>.3f}")
@@ -180,9 +273,13 @@ def train(session_name:str = None):
 
         # save the checkpoint periodically
         if ckpt_interval > 0 and (iter > 0 and (iter % ckpt_interval) == 0):
-            ckpt = os.path.join(ckpt_path, ckpt_basename + f"-{iter}")
-            print(f"---> save checkpoint: {ckpt}")
-            torch.save(model, ckpt)
+            ckpt_file = os.path.join(ckpt_path, ckpt_basename + f"-{iter}")
+            save_checkpoint(ckpt_file=ckpt_file,
+                            model_args=model_args,
+                            training_config=training_config,
+                            iter=iter,
+                            model=model,
+                            optimizer=optimizer)
 
             # Save the embeddings with checkpoints.
             if writer is not None:
@@ -202,7 +299,10 @@ def train(session_name:str = None):
         num_steps += 1
         loss.backward()
         optimizer.step()
-        optimizer.zero_grad()
+        # set_to_none: free the memory
+        optimizer.zero_grad(set_to_none=True)
+
+        iter = iter + 1
 
         # if (iter % eval_interval) == 0 or iter == max_iters - 1:
         #     loss_val = loss.item()
@@ -213,6 +313,16 @@ def train(session_name:str = None):
     print(f"Total number of tokens trained: {block_size*batch_size*max_iters}")
     print(f"Time elapsed: {training_end-training_start:.3f} seconds")
     print(f"Training throughput: {(block_size*batch_size*max_iters)/(training_end-training_start):>.3f} tokens/sec")
+
+    # Save the final model checkpoint
+    if not args.no_save_model:
+        print(f"Saving model checkpoint to {args.output}")
+        save_checkpoint(ckpt_file=args.output,
+                        model_args=model_args,
+                        training_config=training_config,
+                        iter=iter,
+                        model=model,
+                        optimizer=optimizer)
 
     return model
 
@@ -230,11 +340,6 @@ def main():
         m = train(session_name='experiment-' + datetime.datetime.now().strftime('%Y%m%d%H%M'))
     else:
         m = train()
-    
-    # Save the model checkpoint
-    if not args.no_save_model:
-        print(f"Saving model checkpoint to {args.output}")
-        torch.save(m, args.output)
 
 if __name__ == "__main__":
     main()

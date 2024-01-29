@@ -2,7 +2,7 @@
 
 ## Overview
 
-SanGuo GPT is a Large Language Model trained on 三国演义 (San1 Guo2 Yan3 Yi4, Romance of the Three Kindoms), an ancient Chinese novel based on historical events happened ~1800 years ago during the late Han dynasty. It is a Transformer-based model with about 13.778M parameters in current version.
+SanGuo GPT is a Large Language Model trained on 三国演义 (San1 Guo2 Yan3 Yi4, Romance of the Three Kingdoms), an ancient Chinese novel based on historical events happened ~1800 years ago during the late Han dynasty. It is a Transformer-based model with about 13.778M parameters in current version.
 
 I created this project for learning and exploration purpose.
 - I'd like to try out the LLM application building process end-to-end, including major steps like data ingestion & preprocessing, shuffling/sampling, model building & training, visualization, model checkpointing and model serving.

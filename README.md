@@ -1,4 +1,4 @@
-# 三国GPT (SanGuo GPT) v0.2.2
+# 三国GPT (SanGuo GPT) v0.2.3
 
 ## Overview
 
@@ -20,6 +20,9 @@ I've read a quite few good ones. :-)
 
 ## Changelog
 
+- v0.3
+    - Improved checkpoint, allowing training to be resumed from a checkpoint.
+    - Note that the new checkpoint format is not compatible with the old ones.
 - v0.2.2
     - Retrain model for 150000 steps using decaying learning rate and dropout=0.001.
     - Training loss is 0.038 after 150000 steps.
@@ -155,6 +158,22 @@ What does "100000 iterations" mean? Let's do a simple math.
 - So a training loop of 150000 iterations means about 7.92 epochs. Or in other words, the model will read the whole book about 7.92 times.
 
 Apparently this is far from "reading the book a thousand times", but since this is just the first version I decided to give it a try.
+
+## Checkpointing (v0.3+)
+
+By default, a checkpoint will be saved after training cycle is completed.
+The checkpoint contains model configurations, parameters, optimize states and training configurations.
+You can also save checkpoints in the middle of the training cycle, using the `ckpt_interval` argument.
+
+To resume training from a checkpoint, use the `resume_from` argument. For example:
+```bash
+python train.py --resume_from test/test.pt -o test/test2.pt --num_iters 200
+```
+
+The above command will resume training from `test.pt` and save a new checkpoint `test2.pt` after completion.
+
+Note that training step number is also restored from the checkpoint, so the `num_iters` argument is the total number of steps including the steps already trained in the checkpoint.
+For example, if `test.pt` is saved after 100 steps, resuming from this checkpoint with `--num_iters 200` will train additional 100 steps on top of `test.pt`.
 
 ## Visualization
 

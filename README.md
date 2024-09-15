@@ -71,7 +71,7 @@ python train.py --num_iters 5000 \
 Serving the model with Web UI:
 
 ```bash
-streamlit run generate.py -- --model sanguogpt.pth -l 100 --webui
+streamlit run generate.py -- --resume_from sanguogpt.pth -l 100 --webui
 ```
 
 Here is an example of the UI:

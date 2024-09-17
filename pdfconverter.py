@@ -6,7 +6,6 @@ import os
 
 def pdf_to_text(pdf_path, output_txt):
     text = ''
-    with pdfplumber.open(pdf_path) as pdf:
         num_pages = len(pdf.pages)
         print(f"Number of pages: {num_pages}")
         
